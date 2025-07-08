@@ -1,4 +1,6 @@
 from django.db import models
+from rest_framework.exceptions import ValidationError
+
 from user.models import User
 
 
@@ -43,8 +45,12 @@ class Crew(models.Model):
     first_name = models.CharField(max_length=100, null=False, blank=False)
     last_name = models.CharField(max_length=100, null=False, blank=False)
 
-    def __str__(self):
+    @property
+    def full_name(self):
         return f"{self.first_name} {self.last_name}"
+
+    def __str__(self):
+        return self.full_name
 
 class Flight(models.Model):
     airplane = models.ForeignKey(Airplane, on_delete=models.CASCADE)
@@ -59,11 +65,53 @@ class Flight(models.Model):
 class Ticket(models.Model):
     row = models.IntegerField(null=False, blank=False)
     seat = models.IntegerField(null=False, blank=False)
-    flight = models.ForeignKey(Flight, on_delete=models.CASCADE)
-    order = models.ForeignKey("Order", on_delete=models.CASCADE)
+    flight = models.ForeignKey(Flight, on_delete=models.CASCADE, related_name="tickets")
+    order = models.ForeignKey("Order", on_delete=models.CASCADE, related_name="tickets")
 
+    @staticmethod
+    def validate_ticket(row, seat, flight, error_to_raise):
+        for ticket_attr_value, ticket_attr_name, flight_attr_name in [
+            (row, "row", "rows"),
+            (seat, "seat", "seats_in_row"),
+        ]:
+            count_attrs = getattr(flight, flight_attr_name)
+            if not (1 <= ticket_attr_value <= count_attrs):
+                raise error_to_raise(
+                    {
+                        ticket_attr_name: f"{ticket_attr_name} "
+                                          f"number must be in available range: "
+                                          f"(1, {flight_attr_name}): "
+                                          f"(1, {count_attrs})"
+                    }
+             )
+
+    def clean(self):
+        Ticket.validate_ticket(
+            self.row,
+            self.seat,
+            self.flight,
+            ValidationError,
+        )
+
+    def save(
+            self,
+            *args,
+            force_insert=False,
+            force_update=False,
+            using=None,
+            update_fields=None,
+    ):
+        self.full_clean()
+        return super(Ticket, self).save(
+        force_insert, force_update, using, update_fields
+        )
     def __str__(self):
         return f"Ticket: flight {self.flight}, seat {self.row}{chr(64 + self.seat)}"
+
+    class Meta:
+        unique_together = ("flight", "row", "seat")
+        ordering = ["row", "seat"]
+
 
 class Order(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
