@@ -1,6 +1,7 @@
 from django.db import models
 from rest_framework.exceptions import ValidationError
 
+
 from user.models import User
 
 
@@ -15,6 +16,7 @@ class Airplane(models.Model):
     rows = models.IntegerField(null=False, blank=False)
     seats_on_row = models.IntegerField(null=False, blank=False)
     airplane_type = models.ForeignKey(AirplaneType, on_delete=models.CASCADE)
+
 
     @property
     def capacity(self):
