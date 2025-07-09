@@ -13,7 +13,8 @@ from ticket_service.serializers import (FlightSerializer,
                                         AirplaneTypeSerializer,
                                         AirplaneSerializer,
                                         TicketCreateSerializer,
-                                        AirportSerializer,
+                                        AirportDetailSerializer,
+                                        AirportListSerializer,
                                         RouteListSerializer,
                                         RouteDetailSerializer)
 
@@ -38,7 +39,7 @@ class AirplaneList(viewsets.ModelViewSet):
 
 class AirportList(viewsets.ModelViewSet):
     queryset = Airport.objects.all()
-    serializer_class = AirportSerializer
+    serializer_class = AirportDetailSerializer
     permission_classes = [IsAdminUser]
 
 class RouteList(viewsets.ModelViewSet):

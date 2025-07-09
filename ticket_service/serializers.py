@@ -31,21 +31,27 @@ class AirplaneSerializer(serializers.ModelSerializer):
         return Airplane.objects.create(airplane_type=airplane_type, **validated_data)
 
 
-class AirportSerializer(serializers.ModelSerializer):
+class AirportDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Airport
         fields = ["id", "name", "closest_big_city"]
 
+class AirportListSerializer(AirportDetailSerializer):
+    class Meta:
+        model = Airport
+        fields = ["name"]
+
 
 class RouteDetailSerializer(serializers.ModelSerializer):
-
+    source = AirportListSerializer(read_only=True)
+    destination = AirportListSerializer(read_only=True)
     class Meta:
         model = Route
         fields = ["id", "source", "destination", "distance"]
 
 class RouteListSerializer(RouteDetailSerializer):
-    source = RouteDetailSerializer(read_only=True)
-    destination = RouteDetailSerializer(read_only=True)
+    source = AirportListSerializer(read_only=True)
+    destination = AirportListSerializer(read_only=True)
     class Meta:
         model = Route
         fields = ["source", "destination"]
