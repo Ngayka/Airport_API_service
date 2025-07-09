@@ -8,49 +8,82 @@ from ticket_service.models import AirplaneType, Airplane, Airport, Route, Crew, 
 class AirplaneTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = AirplaneType
-        fields = "name"
+        fields = ["id", "name"]
+
+class AirplaneTypeDetailSerializer(AirplaneTypeSerializer):
+    class Meta:
+        model = AirplaneType
+        fields = ["name"]
 
 
 class AirplaneSerializer(serializers.ModelSerializer):
+    airplane_type = AirplaneTypeDetailSerializer(many=False, read_only=True)
+    airplane_type_id = serializers.PrimaryKeyRelatedField(
+        queryset=AirplaneType.objects.all(),
+        write_only=True,
+    )
     class Meta:
         model = Airplane
-        fields = "name", "capacity"
+        fields = ["id", "name", "airplane_type", "airplane_type_id", "rows", "seats_on_row", "capacity"]
+
+    def create(self, validated_data):
+        airplane_type = validated_data.pop("airplane_type_id")
+        return Airplane.objects.create(airplane_type=airplane_type, **validated_data)
 
 
 class AirportSerializer(serializers.ModelSerializer):
     class Meta:
         model = Airport
-        fields = "name", "closest_big_city"
+        fields = ["id", "name", "closest_big_city"]
 
 
-class RouteSerializer(serializers.ModelSerializer):
+class RouteDetailSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = Route
-        fields = "source", "destination", "distance"
+        fields = ["id", "source", "destination", "distance"]
 
-class RouteListSerializer(RouteSerializer):
+class RouteListSerializer(RouteDetailSerializer):
+    source = RouteDetailSerializer(read_only=True)
+    destination = RouteDetailSerializer(read_only=True)
     class Meta:
         model = Route
-        fields = "source", "destination"
+        fields = ["source", "destination"]
 
 
 class CrewSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField(read_only=True)
     class Meta:
         model = Crew
-        fields = "full_name"
+        fields = ["id", "first_name", "last_name", "full_name"]
+
+    def get_full_name(self, obj):
+        return f"{obj.first_name} {obj.last_name}"
+
+
+class CrewDetailSerializer(CrewSerializer):
+    class Meta:
+        model = Crew
+        fields = ["full_name"]
 
 
 class FlightSerializer(serializers.ModelSerializer):
+    crew = CrewDetailSerializer(many=True, read_only=True)
+    crew_id = serializers.PrimaryKeyRelatedField(queryset=Crew.objects.all(), write_only=True)
     class Meta:
         model = Flight
-        fields = "airplane", "route", "departure_time", "arrival_time", "crew",
+        fields = ["airplane", "route", "departure_time", "arrival_time", "crew",]
+
+    def create(self, validated_data):
+        crew = validated_data.pop("crew_id")
+        return Crew.objects.create(crew=crew, **validated_data)
 
 class FlightListSerializer(FlightSerializer):
     airplane_name =serializers.CharField(source="airplane.name", read_only=True)
 
     class Meta:
         model = Flight
-        fields = "airplane_name", "route", "departure_time", "arrival_time"
+        fields = ["airplane_name", "route", "departure_time", "arrival_time"]
 
 
 class FlightDetailSerializer(FlightSerializer):

@@ -5,38 +5,50 @@ from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
 from django_filters.rest_framework import DjangoFilterBackend
 
-from ticket_service.models import Flight, Crew, AirplaneType, Airplane, Route, Ticket
+from ticket_service.models import Flight, Crew, AirplaneType, Airplane, Route, Ticket, Airport
 from ticket_service.serializers import (FlightSerializer,
                                         FlightListSerializer,
                                         FlightDetailSerializer,
                                         CrewSerializer,
                                         AirplaneTypeSerializer,
                                         AirplaneSerializer,
-                                        RouteSerializer, TicketSerializer)
+                                        TicketCreateSerializer,
+                                        AirportSerializer,
+                                        RouteListSerializer,
+                                        RouteDetailSerializer)
 
 
-class CrewList(viewsets.GenericViewSet):
+class CrewList(viewsets.ModelViewSet):
     queryset = Crew.objects.all()
     serializer_class = CrewSerializer
     permission_classes = [IsAdminUser]
 
 
-class AirplaneTypeList(viewsets.GenericViewSet):
+class AirplaneTypeList(viewsets.ModelViewSet):
     queryset = AirplaneType.objects.all()
     serializer_class = AirplaneTypeSerializer
     permission_classes = [IsAdminUser]
 
 
-class AirplaneList(viewsets.GenericViewSet):
+class AirplaneList(viewsets.ModelViewSet):
     queryset = Airplane.objects.all()
     serializer_class = AirplaneSerializer
     permission_classes = [IsAdminUser]
 
 
-class RouteList(viewsets.GenericViewSet):
-    queryset = Route.objects.all()
-    serializer_class = RouteSerializer
+class AirportList(viewsets.ModelViewSet):
+    queryset = Airport.objects.all()
+    serializer_class = AirportSerializer
     permission_classes = [IsAdminUser]
+
+class RouteList(viewsets.ModelViewSet):
+    queryset = Route.objects.all()
+    permission_classes = [IsAdminUser]
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return RouteListSerializer
+        return RouteDetailSerializer
 
 
 class FlightList(mixins.ListModelMixin,
@@ -62,7 +74,7 @@ class TicketList(mixins.RetrieveModelMixin,
                  mixins.CreateModelMixin,
                  viewsets.GenericViewSet):
     queryset = Ticket.objects.all()
-    serializer_class = TicketSerializer
+    serializer_class = TicketCreateSerializer
     permission_classes = [IsAuthenticated]
 
 
@@ -70,5 +82,5 @@ class TicketAdminList(mixins.UpdateModelMixin,
                       mixins.DestroyModelMixin,
                       viewsets.GenericViewSet):
     queryset = Ticket.objects.all()
-    serializer_class = TicketSerializer
+    serializer_class = TicketCreateSerializer
     permission_classes = [IsAdminUser]
