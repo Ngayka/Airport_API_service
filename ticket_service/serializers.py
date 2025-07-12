@@ -17,6 +17,12 @@ class AirplaneTypeDetailSerializer(AirplaneTypeSerializer):
         fields = ["name"]
 
 
+class AirplaneImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Airplane
+        fields = ["id", "image"]
+
+
 class AirplaneSerializer(serializers.ModelSerializer):
     airplane_type = AirplaneTypeDetailSerializer(many=False, read_only=True)
     airplane_type_id = serializers.PrimaryKeyRelatedField(

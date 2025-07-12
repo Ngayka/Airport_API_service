@@ -1,4 +1,8 @@
+import pathlib
+import uuid
+
 from django.db import models
+from django.utils.text import slugify
 from rest_framework.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 
@@ -11,11 +15,17 @@ class AirplaneType(models.Model):
     def __str__(self):
         return f"{self.name or 'Unnamed type'}"
 
+
+def airplane_image_path(instance: "Airplane", filename:str) -> pathlib.Path:
+    filename = f"{slugify(instance.name)}-{uuid.uuid4()}" + pathlib.Path(filename).suffix
+    return pathlib.Path("upload/airplanes/") / pathlib.Path(filename)
+
 class Airplane(models.Model):
     name = models.CharField(max_length=100, null=False, blank=False)
     rows = models.IntegerField(null=False, blank=False)
     seats_on_row = models.IntegerField(null=False, blank=False)
     airplane_type = models.ForeignKey(AirplaneType, on_delete=models.CASCADE)
+    image = models.ImageField(upload_to=airplane_image_path, null=True, blank=True)
 
 
     @property
