@@ -120,5 +120,6 @@ class Order(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
 
+
     def __str__(self):
         return f"Order #{self.id} by {self.user.email} on {self.created_at.strftime('%Y-%m-%d')}"

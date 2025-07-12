@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework import routers
 
 from ticket_service.views import FlightList, CrewList, AirplaneTypeList, AirplaneList, TicketList, AirportList, \
-    RouteList
+    RouteList, OrderViewSet
 
 app_name = 'ticket_service'
 
@@ -14,5 +14,6 @@ router.register("airplanes", AirplaneList, basename="airplanes")
 router.register("airports", AirportList, basename="airports")
 router.register("routes", RouteList, basename="routes")
 router.register("tickets", TicketList, basename="tickets")
+router.register("orders", OrderViewSet, basename="orders")
 
 urlpatterns = [path("", include(router.urls))]

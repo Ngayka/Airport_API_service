@@ -1,6 +1,8 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from ticket_service.models import User
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -22,3 +24,8 @@ class UserSerializer(serializers.ModelSerializer):
             user.save()
 
         return user
+
+class UserListSerializer(UserSerializer):
+    class Meta:
+        model = User
+        fields = ("email",)

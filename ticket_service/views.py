@@ -5,7 +5,7 @@ from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
 from django_filters.rest_framework import DjangoFilterBackend
 
-from ticket_service.models import Flight, Crew, AirplaneType, Airplane, Route, Ticket, Airport
+from ticket_service.models import Flight, Crew, AirplaneType, Airplane, Route, Ticket, Airport, Order
 from ticket_service.serializers import (FlightSerializer,
                                         FlightListSerializer,
                                         FlightDetailSerializer,
@@ -16,8 +16,11 @@ from ticket_service.serializers import (FlightSerializer,
                                         AirportDetailSerializer,
                                         AirportListSerializer,
                                         RouteListSerializer,
-                                        RouteDetailSerializer, TicketListSerializer, TicketListCreateSerializer,
-                                        TicketDetailSerializer)
+                                        RouteDetailSerializer,
+                                        TicketListSerializer,
+                                        TicketListCreateSerializer,
+                                        TicketDetailSerializer,
+                                        OrderListSerializer, OrderCreateSerializer, OrderDetailSerializer)
 
 
 class CrewList(viewsets.ModelViewSet):
@@ -105,6 +108,37 @@ class TicketList(mixins.RetrieveModelMixin,
         if self.action == "create":
             return TicketCreateSerializer
         return TicketDetailSerializer
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [IsAuthenticated()]
+        if self.action in ["create", "update", "partial_update", "destroy"]:
+            return [IsAdminUser()]
+        return super().get_permissions()
+
+
+class OrderViewSet(viewsets.ModelViewSet):
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            queryset = Order.objects.all()
+        elif user.is_authenticated:
+            queryset = self.queryset.filter(user=self.request.user)
+        else:
+            queryset = Order.objects.none()
+        if self.action == 'list':
+            return queryset.prefetch_related("tickets__user")
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def get_serializer_class(self):
+        if self.action in ["list"]:
+            return OrderListSerializer
+        if self.action == "create":
+            return OrderCreateSerializer
+        return OrderDetailSerializer
 
     def get_permissions(self):
         if self.action in ["list", "retrieve"]:

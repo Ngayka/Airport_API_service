@@ -3,7 +3,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
 from ticket_service.models import AirplaneType, Airplane, Airport, Route, Crew, Flight, Ticket, Order
-
+from user.serializers import UserSerializer, UserListSerializer
 
 
 class AirplaneTypeSerializer(serializers.ModelSerializer):
@@ -195,3 +195,41 @@ class TicketCreateSerializer(serializers.ModelSerializer):
             **validated_data,
         )
         return ticket
+
+
+class OrderCreateSerializer(serializers.ModelSerializer):
+    tickets = TicketCreateSerializer(many=True)
+    class Meta:
+        model = Order
+        fields = ("id", "tickets", "user", "created_at")
+
+    @transaction.atomic
+    def create(self, validated_data):
+        user = self.context["request"].user
+        tickets_data = validated_data.pop("tickets")
+        order = Order.objects.create(**validated_data, user=user)
+        for ticket_data in tickets_data:
+            Ticket.objects.create(
+                user=user,
+                order=order,
+                **ticket_data
+            )
+
+        return order
+
+class OrderListSerializer(serializers.ModelSerializer):
+    user = UserListSerializer(read_only=True)
+    class Meta:
+        model = Order
+        fields = ("id", "user", "created_at")
+
+    @staticmethod
+    def get_user(obj):
+        return obj.user
+
+class OrderDetailSerializer(serializers.ModelSerializer):
+    tickets = TicketDetailSerializer(many=True, read_only=True)
+    user = UserSerializer(read_only=True)
+    class Meta:
+        model = Order
+        fields = ("id", "tickets", "user", "created_at")
