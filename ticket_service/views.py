@@ -1,8 +1,7 @@
-from django.shortcuts import render
 from rest_framework import viewsets
-from rest_framework.generics import ListCreateAPIView, mixins
+from rest_framework.generics import mixins
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
-from rest_framework.viewsets import ModelViewSet
 from django_filters.rest_framework import DjangoFilterBackend
 
 from ticket_service.models import Flight, Crew, AirplaneType, Airplane, Route, Ticket, Airport, Order
@@ -14,13 +13,13 @@ from ticket_service.serializers import (FlightSerializer,
                                         AirplaneSerializer,
                                         TicketCreateSerializer,
                                         AirportDetailSerializer,
-                                        AirportListSerializer,
                                         RouteListSerializer,
                                         RouteDetailSerializer,
                                         TicketListSerializer,
-                                        TicketListCreateSerializer,
                                         TicketDetailSerializer,
-                                        OrderListSerializer, OrderCreateSerializer, OrderDetailSerializer)
+                                        OrderListSerializer,
+                                        OrderCreateSerializer,
+                                        OrderDetailSerializer)
 
 
 class CrewList(viewsets.ModelViewSet):
@@ -56,6 +55,12 @@ class RouteList(viewsets.ModelViewSet):
         return RouteDetailSerializer
 
 
+class FlightSetPagination(PageNumberPagination):
+    page_size = 2
+    page_size_query_param = 'page_size'
+    max_page_size = 20
+
+
 class FlightList(mixins.ListModelMixin,
                  mixins.RetrieveModelMixin,
                  mixins.CreateModelMixin,
@@ -63,8 +68,9 @@ class FlightList(mixins.ListModelMixin,
                  mixins.DestroyModelMixin,
                  viewsets.GenericViewSet):
     queryset = Flight.objects.all()
-    # filter_backends = (DjangoFilterBackend,)
-    # filterset_fields = ["route__destination__id", "departure_time", "route__source__id"]
+    pagination_class = FlightSetPagination
+    filter_backends = (DjangoFilterBackend,)
+    filterset_fields = ["route__destination", "departure_time", "route__source"]
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -81,18 +87,22 @@ class FlightList(mixins.ListModelMixin,
         return super().get_permissions()
 
 
-class TicketList(mixins.RetrieveModelMixin,
+class TicketList(mixins.ListModelMixin,
+                 mixins.RetrieveModelMixin,
                  mixins.CreateModelMixin,
                  mixins.UpdateModelMixin,
                  mixins.DestroyModelMixin,
                  viewsets.GenericViewSet):
 
+    queryset = Ticket.objects.all()
+    filter_backends = (DjangoFilterBackend,)
+    filterset_fields = ["flight",]
     def get_queryset(self):
         user = self.request.user
         if user.is_staff:
             queryset = Ticket.objects.all()
         elif user.is_authenticated:
-            queryset = self.queryset.filter(user=self.request.user)
+            queryset = Ticket.objects.filter(user=user)
         else:
             queryset = Ticket.objects.none()
         if self.action == 'list':
@@ -110,9 +120,9 @@ class TicketList(mixins.RetrieveModelMixin,
         return TicketDetailSerializer
 
     def get_permissions(self):
-        if self.action in ["list", "retrieve"]:
+        if self.action in ["list", "retrieve", "create"]:
             return [IsAuthenticated()]
-        if self.action in ["create", "update", "partial_update", "destroy"]:
+        if self.action in ["partial_update", "destroy", "update"]:
             return [IsAdminUser()]
         return super().get_permissions()
 
@@ -123,7 +133,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         if user.is_staff:
             queryset = Order.objects.all()
         elif user.is_authenticated:
-            queryset = self.queryset.filter(user=self.request.user)
+            queryset = Order.objects.filter(user=user)
         else:
             queryset = Order.objects.none()
         if self.action == 'list':
