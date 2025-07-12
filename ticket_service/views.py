@@ -16,7 +16,8 @@ from ticket_service.serializers import (FlightSerializer,
                                         AirportDetailSerializer,
                                         AirportListSerializer,
                                         RouteListSerializer,
-                                        RouteDetailSerializer)
+                                        RouteDetailSerializer, TicketListSerializer, TicketListCreateSerializer,
+                                        TicketDetailSerializer)
 
 
 class CrewList(viewsets.ModelViewSet):
@@ -54,14 +55,19 @@ class RouteList(viewsets.ModelViewSet):
 
 class FlightList(mixins.ListModelMixin,
                  mixins.RetrieveModelMixin,
+                 mixins.CreateModelMixin,
+                 mixins.UpdateModelMixin,
+                 mixins.DestroyModelMixin,
                  viewsets.GenericViewSet):
     queryset = Flight.objects.all()
-    filter_backends = (DjangoFilterBackend,)
-    filterset_fields = ["airport__id", "departure_time", "route__source__id"]
+    # filter_backends = (DjangoFilterBackend,)
+    # filterset_fields = ["route__destination__id", "departure_time", "route__source__id"]
 
     def get_serializer_class(self):
         if self.action == "list":
             return FlightListSerializer
+        if self.action == "create":
+            return FlightSerializer
         return FlightDetailSerializer
 
     def get_permissions(self):
@@ -69,19 +75,40 @@ class FlightList(mixins.ListModelMixin,
             return [AllowAny()]
         if self.action in ["create", "update", "partial_update", "destroy"]:
             return [IsAdminUser()]
+        return super().get_permissions()
 
 
 class TicketList(mixins.RetrieveModelMixin,
                  mixins.CreateModelMixin,
+                 mixins.UpdateModelMixin,
+                 mixins.DestroyModelMixin,
                  viewsets.GenericViewSet):
-    queryset = Ticket.objects.all()
-    serializer_class = TicketCreateSerializer
-    permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            queryset = Ticket.objects.all()
+        elif user.is_authenticated:
+            queryset = self.queryset.filter(user=self.request.user)
+        else:
+            queryset = Ticket.objects.none()
+        if self.action == 'list':
+            return queryset.prefetch_related("flight__airplane")
+        return queryset
 
-class TicketAdminList(mixins.UpdateModelMixin,
-                      mixins.DestroyModelMixin,
-                      viewsets.GenericViewSet):
-    queryset = Ticket.objects.all()
-    serializer_class = TicketCreateSerializer
-    permission_classes = [IsAdminUser]
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def get_serializer_class(self):
+        if self.action in ["list"]:
+            return TicketListSerializer
+        if self.action == "create":
+            return TicketCreateSerializer
+        return TicketDetailSerializer
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [IsAuthenticated()]
+        if self.action in ["create", "update", "partial_update", "destroy"]:
+            return [IsAdminUser()]
+        return super().get_permissions()

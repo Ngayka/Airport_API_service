@@ -1,8 +1,8 @@
 from django.db import models
 from rest_framework.exceptions import ValidationError
+from django.contrib.auth import get_user_model
 
-
-from user.models import User
+User = get_user_model()
 
 
 class AirplaneType(models.Model):
@@ -68,15 +68,16 @@ class Ticket(models.Model):
     row = models.IntegerField(null=False, blank=False)
     seat = models.IntegerField(null=False, blank=False)
     flight = models.ForeignKey(Flight, on_delete=models.CASCADE, related_name="tickets")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     order = models.ForeignKey("Order", on_delete=models.CASCADE, related_name="tickets")
 
     @staticmethod
     def validate_ticket(row, seat, flight, error_to_raise):
         for ticket_attr_value, ticket_attr_name, flight_attr_name in [
             (row, "row", "rows"),
-            (seat, "seat", "seats_in_row"),
+            (seat, "seat", "seats_on_row"),
         ]:
-            count_attrs = getattr(flight, flight_attr_name)
+            count_attrs = getattr(flight.airplane, flight_attr_name)
             if not (1 <= ticket_attr_value <= count_attrs):
                 raise error_to_raise(
                     {

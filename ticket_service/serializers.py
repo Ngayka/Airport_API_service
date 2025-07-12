@@ -5,6 +5,7 @@ from rest_framework.exceptions import ValidationError
 from ticket_service.models import AirplaneType, Airplane, Airport, Route, Crew, Flight, Ticket, Order
 
 
+
 class AirplaneTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = AirplaneType
@@ -63,7 +64,8 @@ class CrewSerializer(serializers.ModelSerializer):
         model = Crew
         fields = ["id", "first_name", "last_name", "full_name"]
 
-    def get_full_name(self, obj):
+    @staticmethod
+    def get_full_name(obj):
         return f"{obj.first_name} {obj.last_name}"
 
 
@@ -75,26 +77,31 @@ class CrewDetailSerializer(CrewSerializer):
 
 class FlightSerializer(serializers.ModelSerializer):
     crew = CrewDetailSerializer(many=True, read_only=True)
-    crew_id = serializers.PrimaryKeyRelatedField(queryset=Crew.objects.all(), write_only=True)
+    crew_id = serializers.PrimaryKeyRelatedField(queryset=Crew.objects.all(), many=True, write_only=True)
     class Meta:
         model = Flight
-        fields = ["airplane", "route", "departure_time", "arrival_time", "crew",]
+        fields = ["airplane", "route", "departure_time", "arrival_time", "crew", "crew_id"]
 
     def create(self, validated_data):
         crew = validated_data.pop("crew_id")
-        return Crew.objects.create(crew=crew, **validated_data)
+        flight = Flight.objects.create(**validated_data)
+        flight.crew.set(crew)
+        return flight
 
 class FlightListSerializer(FlightSerializer):
     airplane_name =serializers.CharField(source="airplane.name", read_only=True)
+    route_source = serializers.CharField(source="route.source", read_only=True)
+    route_destination = serializers.CharField(source="route.destination", read_only=True)
 
     class Meta:
         model = Flight
-        fields = ["airplane_name", "route", "departure_time", "arrival_time"]
+        fields = ["airplane_name", "route_source", "route_destination", "departure_time", "arrival_time"]
 
 
 class FlightDetailSerializer(FlightSerializer):
     route_source = serializers.CharField(source="route.source", read_only=True)
     route_destination = serializers.CharField(source="route.destination", read_only=True)
+    tickets_available = serializers.SerializerMethodField(read_only=True)
     class Meta:
         model = Flight
         fields = ("airplane",
@@ -105,41 +112,52 @@ class FlightDetailSerializer(FlightSerializer):
                   "tickets_available",
                   "crew",)
 
+    @staticmethod
     def get_tickets_available(self, obj):
         taken_tickets = obj.tickets.count()
         capacity = obj.airplane.capacity
         return capacity - taken_tickets
 
 
-class TicketListCreateSerializer(serializers.ListSerializer):
+class TicketListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ticket
         fields = ("id", "row", "seat", "flight")
 
-        def validate(self, data):
-            flight = None
-            seats = set()
-            for item in data:
-                row = item["row"]
-                seat = item["seat"]
-                flight = item["flight"]
-                key = (row, seat)
 
-                if key in seats:
-                    raise serializers.ValidationError(f"Duplicate ticket: row {row}, seat {seat}").seats.add(key)
-                if Ticket.objects.filter(row=row, seat=seat, flight=flight).exists():
-                    raise serializers.ValidationError(f'Ticket already exists: row {row}, seat {seat}')
-                Ticket.validate_ticket(row, seat, flight, serializers.ValidationError)
+class TicketDetailSerializer(TicketListSerializer):
+    flight = FlightListSerializer()
+    class Meta:
+        model = Ticket
+        fields = ("id", "row", "seat", "flight")
 
-            return data
+class TicketListCreateSerializer(serializers.ListSerializer):
+    def validate(self, data):
+        flight = None
+        seats = set()
+        for item in data:
+            row = item["row"]
+            seat = item["seat"]
+            flight = item["flight"]
+            key = (row, seat)
 
-        @transaction.atomic
-        def create(self, validated_data):
-            user = self.context["request"].user
-            order, _ = Order.objects.get_or_create(user=user)
+            if key in seats:
+                raise serializers.ValidationError(f"Duplicate ticket: row {row}, seat {seat}")
+            seats.add(key)
 
-            tickets = [Ticket(order=order, **item) for item in validated_data]
-            return Ticket.objects.bulk_create(tickets)
+            if Ticket.objects.filter(row=row, seat=seat, flight=flight).exists():
+                raise serializers.ValidationError(f'Ticket already exists: row {row}, seat {seat}')
+            Ticket.validate_ticket(row, seat, flight, serializers.ValidationError)
+
+        return data
+
+    @transaction.atomic
+    def create(self, validated_data):
+        user = self.context["request"].user
+        order, _ = Order.objects.get_or_create(user=user)
+
+        tickets = [Ticket(order=order, **item) for item in validated_data]
+        return Ticket.objects.bulk_create(tickets)
 
 
 class TicketCreateSerializer(serializers.ModelSerializer):
@@ -149,11 +167,18 @@ class TicketCreateSerializer(serializers.ModelSerializer):
         list_serializer_class = TicketListCreateSerializer
 
     def validate(self, attrs):
+
+        airplane = attrs["flight"].airplane
+        if attrs["row"] > airplane.rows:
+            raise serializers.ValidationError("Choose a valid row")
+        if attrs["seat"] > airplane.seats_on_row:
+            raise serializers.ValidationError("Choose a valid seat")
+
         Ticket.validate_ticket(
-            attrs["row"],
-            attrs["seat"],
-            attrs["flight"],
-            ValidationError,
+            row=attrs["row"],
+            seat=attrs["seat"],
+            flight=attrs["flight"],
+            error_to_raise=serializers.ValidationError
         )
         Ticket.validate_ticket(attrs["row"], attrs["seat"], attrs["flight"], serializers.ValidationError)
         if Ticket.objects.filter(row=attrs["row"], seat=attrs["seat"], flight=attrs["flight"]).exists():
@@ -170,7 +195,3 @@ class TicketCreateSerializer(serializers.ModelSerializer):
             **validated_data,
         )
         return ticket
-
-
-
-
